@@ -47,8 +47,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/leave-management', [LeaveTypeController::class, 'index'])->name('leave-management.index');
 
 });
-
 Auth::routes();
-
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
