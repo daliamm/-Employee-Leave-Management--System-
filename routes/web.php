@@ -1,9 +1,13 @@
 <?php
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\LeaveTypeController;
+use App\Http\Controllers\ViewController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\LeaveTypeController;
+use App\Http\Controllers\TaskController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,34 +23,31 @@ use App\Http\Controllers\LeaveRequestController;
 Route::get('/', function () {
     return view('welcome');
 });
-Route::get('/home', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/view', [ViewController::class, 'index'])->name('view');
+Route::get('/view/login/{userType}', [ViewController::class, 'redirectToLogin'])->name('view.login');
 
-// Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
-Route::middleware(['auth'])->group(function () {
-    // Route::resource('leave-types', LeaveTypeController::class);
-    // Route::resource('employees', EmployeeController::class);
-    // Route::resource('leave-requests', LeaveRequestController::class)->only(['index', 'update']);
-    // Route::post('submit-leave-request', [LeaveRequestController::class, 'submitRequest'])->name('submit-leave-request'); 
-    Route::get('/create-employee', [EmployeeController::class, 'createEmployee'])->name('create-employee');
-    Route::post('/store-employee', [EmployeeController::class, 'storeEmployee'])->name('store-employee');
-    Route::get('/edit-employee/{employee}', [EmployeeController::class, 'editEmployee'])->name('edit-employee');
-    Route::put('/update-employee/{employee}', [EmployeeController::class, 'updateEmployee'])->name('update-employee');
-    Route::delete('/delete-employee/{employee}', [EmployeeController::class, 'deleteEmployee'])->name('delete-employee');
-    Route::get('/create-leave-type', [LeaveTypeController::class, 'createLeaveType'])->name('create-leave-type');
-    Route::post('/store-leave-type', [LeaveTypeController::class, 'storeLeaveType'])->name('store-leave-type');
-    Route::get('/edit-leave-type/{leaveType}', [LeaveTypeController::class, 'editLeaveType'])->name('edit-leave-type');
-    Route::put('/update-leave-type/{leaveType}', [LeaveTypeController::class, 'updateLeaveType'])->name('update-leave-type');
-    Route::delete('/delete-leave-type/{leaveType}', [LeaveTypeController::class, 'deleteLeaveType'])->name('delete-leave-type');
-    Route::post('/store-leave-request', [LeaveRequestController::class, 'store'])->name('store-leave-request');
-    Route::put('/update-leave-request/{application}', [LeaveRequestController::class, 'update'])->name('update-leave-request');
-    Route::put('/approve-leave-request/{leaveRequest}', [LeaveRequestController::class, 'approve'])->name('approve-leave-request');
-    Route::put('/deny-leave-request/{leaveRequest}', [LeaveRequestController::class, 'deny'])->name('deny-leave-request');
-    Route::get('/leave-management', [LeaveTypeController::class, 'index'])->name('leave-management.index');
-
+Route::group(['middleware' => ['auth', 'user']], function () {
+    Route::get('my-requests', [LeaveRequestController::class, 'index'])->name('my-requests');
+    Route::get('/my-tasks', [EmployeeController::class, 'tasksUser'])->name('tasks.myTasks');
+    Route::post('/my-tasks/{task}/leave', [EmployeeController::class,'leave'])->name('tasks.leave');
+    Route::get('my-task/{task}', [EmployeeController::class,'show'])->name('tasks.show');
 });
-Auth::routes();
-Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
+Route::group(['middleware' => ['auth', 'admin']], function () {
+    Route::get('admin/dashboard',[AdminController::class,'index'])->name('dashboard.index');
+    Route::resource('leave-types',LeaveTypeController::class);
+    Route::get('show-request-details/{id}',[AdminController::class,'show'])->name('request.details');
+    Route::put('/update-leave-request/{leaveRequest}', [AdminController::class,'updateRequest'])->name('update.leave-request');
+    Route::put('/leave-types/{leave_type}', [LeaveTypeController::class,'update'])->name('leave-types.update');
+    Route::resource('employees',EmployeeController::class);
+    Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+    Route::get('employee/{id}/request/',[EmployeeController::class,'getLeaveRequestById'])->name('employee.request');
+    Route::get('leavetype/{id}/request/',[LeaveTypeController::class,'getLeaveRequestByType'])->name('leavetype.request');
+    Route::resource('tasks',TaskController::class);
+});
+
+// Auth
+Route::get('/register', [RegisterController::class, 'RegistrationForm'])->name('register');
+Route::post('/register', [RegisterController::class, 'register']);
+Route::get('/login', [LoginController::class, 'LoginForm'])->name('login');
+Route::post('/login', [LoginController::class, 'login']);

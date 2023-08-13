@@ -1,68 +1,50 @@
 <?php
 namespace App\Http\Controllers;
-
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use Illuminate\Http\Request;
-use App\Models\LeaveType; 
-use App\Models\Employee; 
-use App\Models\LeaveRequest; 
-class LeaveTypeController extends Controller
+class AnotherLeaveTypeController extends Controller
 {
     public function index()
     {
-        $leaveTypes = LeaveType::all();
-        $employees = Employee::all();
-        $leaveRequests = LeaveRequest::all();
-
-        return view('leave-management.index', compact('leaveTypes', 'employees', 'leaveRequests'));
+        $types = LeaveType::orderBy('id', 'desc')->paginate(5);
+        return view('dashboard.admin.leave_types.index', ['types' => $types]);
     }
 
-    public function createLeaveType()
-    {
-        return view('leave-management.create-leave-type');
-    }
-
-    public function storeLeaveType(Request $request)
+    public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'leave_type_name' => 'required|string|max:255',
-            'count' => 'required|integer',
-            'from_date' => 'required|date',
-            'to_date' => 'required|date',
-            'active' => 'required|boolean',
+            'title' => 'required',
+            'description' => 'required',
         ]);
 
         LeaveType::create($validatedData);
-
-
-        return redirect()->route('leave-management.index')->with('success', 'Leave type created successfully.');
+        return redirect()->route('leave-types.index')->with('message', 'Leave Type Created Successfully');
     }
 
-    public function editLeaveType(LeaveType $leaveType)
-    {
-        return view('leave-management.edit-leave-type', compact('leaveType'));
-    }
-
-    public function updateLeaveType(Request $request, LeaveType $leaveType)
+    public function update(Request $request, LeaveType $type)
     {
         $validatedData = $request->validate([
-            'leave_type_name' => 'required|string|max:255',
-            'count' => 'required|integer',
-            'from_date' => 'required|date',
-            'to_date' => 'required|date',
-            'active' => 'required|boolean',
+            'title' => 'nullable',
+            'description' => 'nullable',
         ]);
 
-        $leaveType->update($validatedData);
+        $type->update($validatedData);
 
-
-        return redirect()->route('leave-management.index')->with('success', 'Leave type updated successfully.');
+        return redirect()->route('leave-types.index')->with('message', 'Leave Type Updated Successfully')->with('type', 'success');
     }
 
-    public function deleteLeaveType(LeaveType $leaveType)
+    public function destroy(string $id)
     {
-        $leaveType->delete();
+        $type = LeaveType::findOrFail($id);
+        $type->delete();
 
-        return redirect()->route('leave-management.index')->with('success', 'Leave type deleted successfully.');
+        return redirect()->route('leave-types.index')->with('message', 'Leave Type Deleted Successfully')->with('type', 'danger');
     }
 
+    public function getLeaveRequestByType($id)
+    {
+        $requests = LeaveRequest::where('leave_type_id', $id)->orderBy('id', 'desc')->get();
+        return view('dashboard.admin.leave_types.requests', ['requests' => $requests]);
+    }
 }

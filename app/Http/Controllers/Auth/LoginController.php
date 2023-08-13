@@ -3,38 +3,44 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Providers\RouteServiceProvider;
-use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | Login Controller
-    |--------------------------------------------------------------------------
-    |
-    | This controller handles authenticating users for the application and
-    | redirecting them to your home screen. The controller uses a trait
-    | to conveniently provide its functionality to your applications.
-    |
-    */
-
-    use AuthenticatesUsers;
-
-    /**
-     * Where to redirect users after login.
-     *
-     * @var string
-     */
-    protected $redirectTo = RouteServiceProvider::HOME;
-
-    /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
-    public function __construct()
+    public function LoginForm()
     {
-        $this->middleware('guest')->except('logout');
+        return view('auth.login');
+    }
+
+    public function login(Request $request)
+    {
+        $validatedData  = $request->validate([
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+        // $user = User::create([
+        //     'name' => $validatedData['name'],
+        //     'email' => $validatedData['email'],
+        //     'password' => bcrypt($validatedData['password']),
+        // ]);
+        if (Auth::attempt($validatedData )) {
+           $user = Auth::user();
+
+            if ($user->type === 'admin') {
+                return redirect()->route('dashboard.index')->with('success', 'Logged In Successfully as Admin');
+            } else {
+                return redirect()->route('my-requests.index')->with('success', 'Logged In Successfully');
+            }
+        }
+        return redirect()->back()->withErrors(['email' => 'Invalid credentials.']);
+    }
+
+    public function logout(Request $request)
+    {
+        Auth::logout();
+
+        return redirect()->route('login')->with('success', 'You have been logged out.');
     }
 }

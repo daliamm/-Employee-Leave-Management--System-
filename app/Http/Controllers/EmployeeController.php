@@ -2,54 +2,97 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LeaveRequest;
+use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
-use App\Models\LeaveType; 
-use App\Models\Employee; 
-use App\Models\LeaveRequest; 
+use Illuminate\Support\Facades\Validator;
+
 class EmployeeController extends Controller
 {
-    public function createEmployee()
+    public function index(Request $request)
     {
-        return view('leave-management.create-employee');
+        $query = $request->input('query');
+
+        $users = User::where(function ($queryBuilder) use ($query) {
+            if ($query) {
+                $queryBuilder->where('name', 'like', '%' . $query . '%')
+                             ->orWhere('email', 'like', '%' . $query . '%');
+            }
+        })
+            ->orderByDesc('id')
+            ->paginate(5);
+
+        return view('dashboard.admin.employee.index', [
+            'users' => $users,
+            'query' => $query,
+        ]);
     }
-    public function storeEmployee(Request $request)
+
+    public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'staff_id' => 'required',
-            'firstname' => 'required|string|max:255',
-            'lastname' => 'required|string|max:255',
-            'age' => 'required',
-            'email' => 'required|string|email|unique:employees',
-            'phone_number' => 'required|string|max:255',
-            'department' => 'required',
+            'name' => 'required',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:6',
         ]);
-        Employee::create($validatedData);
-        return redirect()->route('leave-management.index')->with('success', 'Employee created successfully.');
+
+        $user = new User($validatedData);
+        $user->password = bcrypt($validatedData['password']);
+        $user->save();
+
+        return redirect()->route('employees.index')->with('message', 'Employee Created Successfully')->with('type', 'success');
     }
 
-    public function editEmployee(Employee $employee)
-    {
-        return view('leave-management.edit-employee', compact('employee'));
-    }
-
-    public function updateEmployee(Request $request, Employee $employee)
+    public function update(Request $request, $id)
     {
         $validatedData = $request->validate([
-            'staff_id' => 'required',
-            'firstname' => 'required|string|max:255',
-            'lastname' => 'required|string|max:255',
-            'age' => 'required',
-            'email' => 'required|string|email|unique:employees',
-            'phone_number' => 'required|string|max:255',
-            'department' => 'required',
-
+            'name' => 'required',
+            'email' => 'required|email|unique:users,email,' . $id,
+            'password' => 'nullable|min:6',
         ]);
 
-        $employee->update($validatedData);
-        return redirect()->route('leave-management.index')->with('success', 'Employee updated successfully.');
+        $user = User::findOrFail($id);
+        $user->fill($validatedData);
+        if ($request->filled('password')) {
+            $user->password = bcrypt($validatedData['password']);
+        }
+        $user->save();
+
+        return redirect()->route('employees.index')->with('message', 'Employee Updated Successfully')->with('type', 'success');
     }
-    public function deleteEmployee(Employee $employee)
-    {      $employee->delete();
-        return redirect()->route('leave-management.index')->with('success', 'Employee deleted successfully.');
+
+    public function destroy(string $id)
+    {
+        $user = User::findOrFail($id);
+        $user->delete();
+
+        return redirect()->route('employees.index')->with('message', 'Employee Deleted Successfully')->with('type', 'danger');
+    }
+
+    public function getLeaveRequestByUserId($id)
+    {
+        $requests = LeaveRequest::where('user_id', $id)->get();
+        return view('dashboard.admin.employee.employee_request', compact('requests'));
+    }
+
+    public function tasksByCurrentUser()
+    {
+        $user = auth()->user();
+        $tasks = $user->tasks;
+        return view('dashboard.employee.tasks.index', ['tasks' => $tasks]);
+    }
+
+    public function leave(Request $request, Task $task)
+    {
+        $user = auth()->user();
+        $task->users()->detach($user->id);
+        return redirect()->route('tasks.myTasks')->with('message', 'You left the task successfully.');
+    }
+
+    public function show(Task $task)
+    {
+        $task->load('users');
+        return view('dashboard.employee.tasks.show', compact('task'));
     }
 }

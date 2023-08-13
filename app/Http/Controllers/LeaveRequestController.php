@@ -1,76 +1,97 @@
 <?php
+
 namespace App\Http\Controllers;
+
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use App\Http\Requests\NewLeaveApplicationRequest;
-use App\Models\LeaveApplication;
-use App\Models\User;
-use Illuminate\Support\Facades\Session;
-use App\Models\LeaveType; 
-use App\Models\Employee; 
-use App\Models\LeaveRequest; 
+use Carbon\Carbon;
+
 class LeaveRequestController extends Controller
 {
-    public function __construct()
+    public function index()
     {
-        $this->middleware('auth');
+        $user_id = auth()->user()->id;
+        $leaveTypes = LeaveType::all();
+        $requests = LeaveRequest::where('user_id', $user_id)->orderByDesc('id')
+        ->paginate(7);           
+        return view('dashboard.employee.all_requests', ['requests' => $requests, 'leaveTypes' => $leaveTypes]);
     }
-
-    public function store(NewLeaveApplicationRequest $request)
+    public function store(Request $request)
     {
-        $application = new LeaveRequest();
-
-        $application->employee_id = Auth::id(); 
-        $application->leave_type_id = $request->input('leave_type'); 
-        $application->start_date = $request->input('start_date'); 
-        $application->end_date = $request->input('end_date'); 
-        $application->reason = $request->input('reason'); 
-        $application->status = 'pending'; 
-
-        $application->save();
-        Session::flash('success', 'Application Submitted Successfully.');
-        return redirect()->route('homeView');
-    }
-    
-    public function update(Request $request, LeaveRequest $application)
-    {
-        $application->remarks = $request['remarks'];
-        $application->authorizer_user_id = Auth::id();
-
-        if($request->has('approved')) {
-            $application->status = 'approved';
-        } else {
-            $application->status = 'rejected';
+        $user = auth()->user();
+        $userTasks = $user->tasks->count();
+        if ($userTasks > 2) {
+            return redirect()->route('my-requests.index')->with('msg', 'You cannot create a leave request.')->with('type', 'danger');
         }
-        $application->save();
 
-        $applier = User::findOrFail($application->applier_user_id);
-        
-        return redirect()->back();
+        $validatedData = $request->validate([
+            'start_date' => 'required',
+            'end_date' => 'required',
+            'reason' => 'required',
+        ]);
+
+        $leaveTypeId = $request->input('leave_type_id');
+        $manualLeaveType = $request->input('manual_leave_type');
+
+        if ($leaveTypeId === 'other' && empty($manualLeaveType)) {
+            $manualLeaveType = null;
+        }
+
+        LeaveRequest::create([
+            'user_id' => $user->id,
+            'leave_type_id' => $leaveTypeId === 'other' ? null : $leaveTypeId,
+            'start_date' => $validatedData['start_date'],
+            'end_date' => $validatedData['end_date'],
+            'reason' => $validatedData['reason'],
+            'manual_leave_type' => $manualLeaveType,
+        ]);
+
+        return redirect()->route('my-requests.index')->with('message', 'Leave Request Created Successfully');
     }
 
-    public function approve(LeaveRequest $leaveRequest, Request $request)
+    public function update(Request $request, $id)
     {
-        $leaveRequest->update([
-            'status' => 'approved',
+        $leaveRequest = LeaveRequest::findOrFail($id);
+        $user = auth()->user();
+        $userTasksCount = $user->tasks->count();
+
+        if ($userTasksCount > 3) {
+            return redirect()->route('my-requests.index')->with('message', 'You cannot update the leave request because you already have more than 3 tasks.')->with('type', 'danger');
+        }
+
+        $validatedData = $request->validate([
+            'start_date' => 'required',
+            'end_date' => 'required',
+            'reason' => 'required',
+            'count'=>'required'
         ]);
 
-        Session::flash('success', 'Leave request approved.');
-        return redirect()->route('leave-requests.index');
+        $leaveTypeId = $request->input('leave_type_id');
+        $manualLeaveType = $request->input('manual_leave_type');
+
+        if ($leaveTypeId === 'other' && empty($manualLeaveType)) {
+            return redirect()->route('my-requests.index')->with('message', 'Leave Request not updated. Select a valid leave type or provide a manual leave type.')->with('type', 'danger');
+        }
+
+        $leaveRequest->update([
+            'leave_type_id' => $leaveTypeId === 'other' ? null : $leaveTypeId,
+            'start_date' => $validatedData['start_date'],
+            'end_date' => $validatedData['end_date'],
+            'reason' => $validatedData['reason'],
+            'count'=>$validatedData['required'],
+            'manual_leave_type' => $leaveTypeId === 'other' ? $manualLeaveType : null,
+        ]);
+
+        return redirect()->route('my-requests.index')->with('message', 'Leave request updated successfully.');
     }
 
-    public function deny(LeaveRequest $leaveRequest, Request $request)
+    public function destroy(string $id)
     {
-        $this->validate($request, [
-            'denial_reason' => 'required|string',
-        ]);
+        $request = LeaveRequest::findOrFail($id);
+        $request->delete();
 
-        $leaveRequest->update([
-            'status' => 'denied',
-            'denial_reason' => $request->denial_reason,
-        ]);
-
-        Session::flash('success', 'Leave request denied.');
-        return redirect()->route('leave-requests.index');
+        return redirect()->route('my-requests.index')->with('message', 'Leave Request Deleted Successfully');
     }
 }
+

@@ -13,11 +13,9 @@ return new class extends Migration
     {
         Schema::create('leave_types', function (Blueprint $table) {
             $table->id();
-            $table->string('leave_type_name');
-            $table->integer('count');
-            $table->date('from_date');
-            $table->date('to_date');
-            $table->boolean('active');
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->timestamps();
         });
     }
 
